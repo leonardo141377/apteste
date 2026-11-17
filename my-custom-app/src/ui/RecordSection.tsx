@@ -15,25 +15,25 @@ export interface Column<T> {
 
 export interface RecordSectionProps<T extends BaseRecord> {
   repo: Repository<T>;
-  /** Filtro fixo da listagem, tambÃ©m aplicado aos novos registros (ex.: { installationId }). */
+  /** Filtro fixo da listagem, também aplicado aos novos registros (ex.: { installationId }). */
   filter?: Filter;
   /** Textos: singular/plural e artigo ("o"/"a"). */
   noun: { singular: string; plural: string; article: 'o' | 'a' };
   columns: Column<T>[];
   fields: FieldDef[];
-  /** Valores iniciais para novos registros (alÃ©m do filtro). */
+  /** Valores iniciais para novos registros (além do filtro). */
   newValues?: Values;
-  /** Texto pesquisÃ¡vel de cada registro. */
+  /** Texto pesquisável de cada registro. */
   searchText: (record: T) => string;
-  /** Nome exibido nas confirmaÃ§Ãµes. */
+  /** Nome exibido nas confirmações. */
   displayName: (record: T) => string;
   /** Converte/valida valores antes de salvar. Lance Error para bloquear. */
   prepare?: (values: Values) => Values;
-  /** Retorna mensagem se a exclusÃ£o deve ser bloqueada (ex.: hÃ¡ registros vinculados). */
+  /** Retorna mensagem se a exclusão deve ser bloqueada (ex.: há registros vinculados). */
   checkDelete?: (record: T) => Promise<string | null>;
   /** Abre o detalhe do registro (clique na linha). */
   onOpen?: (record: T) => void;
-  /** Chamado apÃ³s criar/editar/excluir, para atualizar dados dependentes. */
+  /** Chamado após criar/editar/excluir, para atualizar dados dependentes. */
   onChanged?: (records: T[]) => void;
 }
 
@@ -105,7 +105,7 @@ export function RecordSection<T extends BaseRecord>(props: RecordSectionProps<T>
     try {
       await repo.remove(deleting.id);
       update(records.filter((r) => r.id !== deleting.id));
-      toastSuccess(`${noun.singular} excluÃ­d${noun.article}.`);
+      toastSuccess(`${noun.singular} excluíd${noun.article}.`);
     } catch (error) {
       toastError(`Erro ao excluir: ${errorMessage(error)}`);
     } finally {
@@ -144,7 +144,7 @@ export function RecordSection<T extends BaseRecord>(props: RecordSectionProps<T>
     }
     if (loadError) {
       return (
-        <EmptyState title={`NÃ£o foi possÃ­vel carregar ${noun.plural.toLowerCase()}`} subtitle={loadError}>
+        <EmptyState title={`Não foi possível carregar ${noun.plural.toLowerCase()}`} subtitle={loadError}>
           <Button size="small" onClick={load}>
             Tentar novamente
           </Button>
@@ -184,7 +184,7 @@ export function RecordSection<T extends BaseRecord>(props: RecordSectionProps<T>
         </Table>
         {!filtered.length && (
           <Box padding="SP6" align="center">
-            <Text secondary>Nenhum resultado para â€œ{search}â€.</Text>
+            <Text secondary>Nenhum resultado para “{search}”.</Text>
           </Box>
         )}
       </>
@@ -220,7 +220,7 @@ export function RecordSection<T extends BaseRecord>(props: RecordSectionProps<T>
       <ConfirmDeleteModal
         isOpen={!!deleting}
         title={`Excluir ${noun.singular.toLowerCase()}?`}
-        message={`â€œ${deleting ? displayName(deleting) : ''}â€ serÃ¡ excluÃ­d${noun.article} permanentemente.`}
+        message={`“${deleting ? displayName(deleting) : ''}” será excluíd${noun.article} permanentemente.`}
         onConfirm={confirmDelete}
         onClose={() => setDeleting(null)}
       />

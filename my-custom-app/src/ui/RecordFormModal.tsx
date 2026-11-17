@@ -5,7 +5,7 @@ import type { Option } from '../domain/labels';
 import { errorMessage, toastError } from './feedback';
 import { getPath, setPath } from './path';
 
-export type FieldType = 'text' | 'textarea' | 'select' | 'number' | 'url' | 'email' | 'lines';
+export type FieldType = 'text' | 'textarea' | 'select' | 'number' | 'url' | 'email' | 'lines' | 'date' | 'boolean';
 
 export interface FieldDef {
   /** Caminho no registro, ex.: "name", "server.baseUrl", "contacts.0.email". */
@@ -107,6 +107,25 @@ const FormBody: FC<Omit<Props, 'isOpen'>> = ({ title, fields, initial, onSubmit,
           />
         );
       }
+      case 'boolean':
+        return (
+          <Dropdown
+            selectedId={value ? 'yes' : 'no'}
+            options={[
+              { id: 'no', value: 'Não' },
+              { id: 'yes', value: 'Sim' },
+            ]}
+            onSelect={(option) => set(field.key, option.id === 'yes')}
+          />
+        );
+      case 'date':
+        return (
+          <Input
+            type="date"
+            value={(value as string) ?? ''}
+            onChange={(e) => set(field.key, e.target.value)}
+          />
+        );
       case 'number':
         return (
           <Input

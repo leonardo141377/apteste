@@ -7,9 +7,11 @@ import { extensions, type DataCollection } from '@wix/custom-extensions';
  *
  * Acesso: somente PRIVILEGED (administradores do site/empresa).
  * Tokens do Home Assistant NÃO são guardados aqui — apenas credentialRef.
+ * Datas simples (AAAA-MM-DD) são guardadas como texto.
  */
 
 type Field = DataCollection['fields'][number];
+type ObjectField = NonNullable<Field['objectOptions']>['fields'][number];
 
 const PRIVILEGED_ONLY: DataCollection['dataPermissions'] = {
   itemRead: 'PRIVILEGED',
@@ -34,7 +36,17 @@ const enumText = (key: string, displayName: string, values: string[]): Field => 
 
 /** ID de outro registro (relação por ID, como em model.ts). */
 const ref = (key: string, displayName: string): Field => text(key, displayName, 100);
+/** Data AAAA-MM-DD. */
+const date = (key: string, displayName: string): Field => text(key, displayName, 10);
 
+const object = (key: string, displayName: string, keys: string[]): Field => ({
+  key,
+  displayName,
+  type: 'OBJECT',
+  objectOptions: { fields: keys.map((k): ObjectField => ({ key: k, type: 'TEXT' })) },
+});
+
+const ADDRESS_KEYS = ['street', 'number', 'complement', 'district', 'city', 'state', 'postalCode', 'country'];
 const PRIORITIES = ['low', 'medium', 'high', 'critical'];
 
 /** Campos de auditoria/versionamento comuns (BaseRecord). */
@@ -55,10 +67,20 @@ const clients: DataCollection = {
   dataPermissions: PRIVILEGED_ONLY,
   fields: [
     text('name', 'Nome', 200),
+    enumText('clientType', 'Tipo', ['person', 'company']),
+    text('tradeName', 'Nome fantasia', 200),
     text('document', 'CPF/CNPJ', 20),
+    text('stateRegistration', 'Inscrição estadual', 30),
     enumText('status', 'Status', ['prospect', 'active', 'paused', 'closed']),
-    { key: 'contacts', displayName: 'Contatos', type: 'ARRAY_DOCUMENT' },
     enumText('priority', 'Prioridade', PRIORITIES),
+    { key: 'contacts', displayName: 'Contatos', type: 'ARRAY_DOCUMENT' },
+    object('billingAddress', 'Endereço de cobrança', ADDRESS_KEYS),
+    text('contractNumber', 'Nº do contrato', 50),
+    date('contractStart', 'Início do contrato'),
+    date('contractEnd', 'Fim do contrato'),
+    enumText('supportPlan', 'Plano de suporte', ['none', 'basic', 'standard', 'premium']),
+    text('technicalResponsible', 'Responsável técnico', 200),
+    text('source', 'Origem', 200),
     ...baseFields,
   ],
 };
@@ -71,28 +93,22 @@ const installations: DataCollection = {
   fields: [
     ref('clientId', 'Cliente'),
     text('name', 'Nome', 200),
-    {
-      key: 'address',
-      displayName: 'Endereço',
-      type: 'OBJECT',
-      objectOptions: {
-        fields: [
-          { key: 'street', type: 'TEXT' },
-          { key: 'city', type: 'TEXT' },
-          { key: 'state', type: 'TEXT' },
-          { key: 'postalCode', type: 'TEXT' },
-          { key: 'country', type: 'TEXT' },
-        ],
-      },
-    },
+    enumText('propertyType', 'Tipo de imóvel', ['house', 'apartment', 'condo_house', 'office', 'commercial', 'other']),
+    object('address', 'Endereço', ADDRESS_KEYS),
+    text('accessInstructions', 'Instruções de acesso', 2000),
+    object('onSiteContact', 'Contato no local', ['name', 'email', 'phone', 'role']),
     {
       key: 'server',
       displayName: 'Servidor Home Assistant',
       type: 'OBJECT',
       objectOptions: {
         fields: [
-          { key: 'baseUrl', type: 'URL' },
+          { key: 'baseUrl', type: 'TEXT' },
+          { key: 'localUrl', type: 'TEXT' },
           { key: 'haVersion', type: 'TEXT' },
+          { key: 'installMethod', type: 'TEXT' },
+          { key: 'hardware', type: 'TEXT' },
+          { key: 'remoteAccess', type: 'TEXT' },
           {
             key: 'connectionStatus',
             type: 'TEXT',
@@ -106,6 +122,24 @@ const installations: DataCollection = {
         ],
       },
     },
+    {
+      key: 'network',
+      displayName: 'Rede',
+      type: 'OBJECT',
+      objectOptions: {
+        fields: [
+          ...['isp', 'internetPlan', 'routerModel', 'subnet', 'gatewayIp', 'zigbeeCoordinator', 'zwaveController', 'threadBorderRouter'].map(
+            (k): ObjectField => ({ key: k, type: 'TEXT' }),
+          ),
+          { key: 'wifiSsids', type: 'ARRAY_STRING' },
+        ],
+      },
+    },
+    text('backupLocation', 'Local do backup', 500),
+    date('lastBackupAt', 'Último backup'),
+    date('installedAt', 'Data de instalação'),
+    date('warrantyUntil', 'Garantia até'),
+    text('technicalResponsible', 'Responsável técnico', 200),
     { key: 'deploymentStages', displayName: 'Etapas de implantação', type: 'ARRAY_DOCUMENT' },
     enumText('priority', 'Prioridade', PRIORITIES),
     ...baseFields,
@@ -121,6 +155,10 @@ const areas: DataCollection = {
   fields: [
     ref('installationId', 'Instalação'),
     text('name', 'Nome', 200),
+    enumText('areaType', 'Tipo', [
+      'living', 'bedroom', 'kitchen', 'bathroom', 'office', 'garage',
+      'outdoor', 'service', 'hall', 'technical', 'other',
+    ]),
     text('floor', 'Andar', 100),
     text('haAreaId', 'area_id (HA)', 200),
     ...baseFields,
@@ -137,17 +175,30 @@ const devices: DataCollection = {
     ref('installationId', 'Instalação'),
     ref('areaId', 'Ambiente'),
     text('name', 'Nome', 200),
+    enumText('status', 'Situação', ['planned', 'installed', 'attention', 'fault', 'removed']),
+    text('category', 'Categoria', 100),
     text('manufacturer', 'Fabricante', 200),
     text('model', 'Modelo', 200),
+    text('serialNumber', 'Nº de série', 100),
+    text('hardwareVersion', 'Versão de hardware', 50),
+    text('firmwareVersion', 'Firmware', 100),
     enumText('protocol', 'Protocolo', [
       'zigbee', 'zwave', 'wifi', 'matter', 'thread', 'bluetooth',
       'ethernet', 'rf433', 'infrared', 'cloud', 'other',
     ]),
-    text('firmwareVersion', 'Firmware', 100),
+    enumText('powerSource', 'Alimentação', ['mains', 'battery', 'poe', 'usb', 'other']),
+    text('batteryType', 'Tipo de bateria', 50),
+    ref('parentDeviceId', 'Gateway / dispositivo pai'),
+    text('location', 'Localização exata', 300),
     text('haDeviceId', 'device_id (HA)', 200),
     text('integration', 'Integração (HA)', 100),
     text('ipAddress', 'IP', 64),
     text('macAddress', 'MAC', 32),
+    text('wifiSsid', 'Rede Wi-Fi', 100),
+    text('supplier', 'Fornecedor', 200),
+    date('purchaseDate', 'Data de compra'),
+    date('installedAt', 'Data de instalação'),
+    date('warrantyUntil', 'Garantia até'),
     { key: 'attachmentIds', displayName: 'Anexos', type: 'ARRAY_STRING' },
     ...baseFields,
   ],
@@ -163,19 +214,17 @@ const entities: DataCollection = {
     ref('installationId', 'Instalação'),
     ref('deviceId', 'Dispositivo'),
     ref('areaId', 'Ambiente'),
-    {
-      key: 'entityId',
-      displayName: 'entity_id',
-      type: 'TEXT',
-      textOptions: { textValidation: { maxLength: 255, pattern: '^[a-z0-9_]+\\.[a-z0-9_]+$' } },
-    },
+    text('entityId', 'entity_id', 255),
     text('domain', 'Domínio', 64),
     text('friendlyName', 'Nome amigável', 255),
+    text('purpose', 'Função', 500),
     text('deviceClass', 'device_class', 64),
     text('unitOfMeasurement', 'Unidade', 32),
+    text('icon', 'Ícone', 100),
     { key: 'supportedFeatures', displayName: 'supported_features', type: 'NUMBER', numberOptions: { min: 0 } },
     { key: 'capabilities', displayName: 'Capacidades', type: 'OBJECT' },
     { key: 'disabled', displayName: 'Desativada', type: 'BOOLEAN' },
+    { key: 'hidden', displayName: 'Oculta', type: 'BOOLEAN' },
     text('lastSeenState', 'Último estado', 255),
     { key: 'lastSyncAt', displayName: 'Última sincronização', type: 'DATETIME' },
     ...baseFields,

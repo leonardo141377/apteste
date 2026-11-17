@@ -5,7 +5,16 @@ import { clientsRepo } from '../../../../data/repositories';
 import type { Client, Installation } from '../../../../domain/model';
 import { RecordSection } from '../../../../ui/RecordSection';
 import { ClientView } from './ClientView';
-import { checkDeleteClient, clientColumns, clientFields, clientNewValues, clientSearch, prepareClient } from './config';
+import {
+  checkDeleteClient,
+  clientColumns,
+  clientDisplayName,
+  clientFields,
+  clientNewValues,
+  clientSearch,
+  installationDisplayName,
+  prepareClient,
+} from './config';
 import { InstallationView } from './InstallationView';
 
 /** Navegação interna: Clientes → Cliente → Instalação. */
@@ -22,7 +31,7 @@ const AdminPage: FC = () => {
       case 'client':
         return (
           <Page.Header
-            title={route.client.name}
+            title={clientDisplayName(route.client)}
             subtitle="Cliente"
             showBackButton
             onBackClicked={() => setRoute({ view: 'clients' })}
@@ -31,8 +40,8 @@ const AdminPage: FC = () => {
       case 'installation':
         return (
           <Page.Header
-            title={route.installation.name}
-            subtitle={`Instalação · ${route.client.name}`}
+            title={installationDisplayName(route.installation)}
+            subtitle={`Instalação · ${clientDisplayName(route.client)}`}
             showBackButton
             onBackClicked={() => setRoute({ view: 'client', client: route.client })}
           />
@@ -71,7 +80,7 @@ const AdminPage: FC = () => {
             newValues={clientNewValues}
             prepare={prepareClient}
             searchText={clientSearch}
-            displayName={(c) => c.name}
+            displayName={clientDisplayName}
             checkDelete={checkDeleteClient}
             onOpen={(client) => setRoute({ view: 'client', client })}
           />

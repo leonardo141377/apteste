@@ -2,13 +2,22 @@ import { Badge, Text } from '@wix/design-system';
 import type { Values } from '../../../../data/repository';
 import { areasRepo, devicesRepo, entitiesRepo, installationsRepo } from '../../../../data/repositories';
 import {
+  AREA_TYPE,
   CLIENT_STATUS,
   CLIENT_STATUS_SKIN,
+  CLIENT_TYPE,
   CONNECTION_STATUS,
   CONNECTION_STATUS_SKIN,
+  DEVICE_STATUS,
+  DEVICE_STATUS_SKIN,
+  HA_INSTALL_METHOD,
+  POWER_SOURCE,
   PRIORITY,
   PRIORITY_SKIN,
+  PROPERTY_TYPE,
   PROTOCOL,
+  REMOTE_ACCESS,
+  SUPPORT_PLAN,
   toOptions,
   type Option,
 } from '../../../../domain/labels';
@@ -16,16 +25,13 @@ import { domainOf, type Area, type Client, type Contact, type Device, type Entit
 import type { FieldDef } from '../../../../ui/RecordFormModal';
 import type { Column } from '../../../../ui/RecordSection';
 
-// ---------------------------------------------------------------------------
-// Validações
-// ---------------------------------------------------------------------------
+/*
+ * Por enquanto nenhum campo é obrigatório nem validado, exceto o entity_id
+ * (identificador da entidade no Home Assistant). Validações serão definidas depois.
+ */
 
-const EMAIL = { regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'E-mail inválido.' };
-const URL_HA = { regex: /^https?:\/\/[^\s]+$/i, message: 'Use http:// ou https://, ex.: https://casa.exemplo.com:8123' };
-const IPV4 = { regex: /^(\d{1,3}\.){3}\d{1,3}$/, message: 'IPv4 inválido, ex.: 192.168.1.50' };
-const MAC = { regex: /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i, message: 'MAC inválido, ex.: AA:BB:CC:DD:EE:FF' };
-const ENTITY_ID = { regex: /^[a-z0-9_]+\.[a-z0-9_]+$/, message: 'Formato dominio.nome, ex.: light.sala_teto' };
-const HA_ID = { regex: /^[a-z0-9_]+$/, message: 'Use letras minúsculas, números e _.' };
+const NO_NAME = '(sem nome)';
+const nameOf = (r: { name?: string }) => r.name || NO_NAME;
 
 const priorityBadge = (p: keyof typeof PRIORITY) => (
   <Badge size="small" skin={PRIORITY_SKIN[p]}>
@@ -35,32 +41,67 @@ const priorityBadge = (p: keyof typeof PRIORITY) => (
 
 const lookup = (options: Option[], id?: string) => options.find((o) => o.id === id)?.value ?? '—';
 
+/** Campos de endereço sob um prefixo ("address", "billingAddress"). */
+const addressFields = (prefix: string, section: string): FieldDef[] => [
+  { key: `${prefix}.postalCode`, label: 'CEP', half: true, section },
+  { key: `${prefix}.street`, label: 'Logradouro' },
+  { key: `${prefix}.number`, label: 'Número', half: true },
+  { key: `${prefix}.complement`, label: 'Complemento', half: true },
+  { key: `${prefix}.district`, label: 'Bairro', half: true },
+  { key: `${prefix}.city`, label: 'Cidade', half: true },
+  { key: `${prefix}.state`, label: 'Estado (UF)', half: true },
+  { key: `${prefix}.country`, label: 'País', half: true },
+];
+
+const contactFields = (prefix: string, section: string): FieldDef[] => [
+  { key: `${prefix}.name`, label: 'Nome', half: true, section },
+  { key: `${prefix}.role`, label: 'Função / relação', half: true, placeholder: 'Proprietário, síndico, governanta…' },
+  { key: `${prefix}.email`, label: 'E-mail', type: 'email', half: true },
+  { key: `${prefix}.phone`, label: 'Telefone / WhatsApp', half: true },
+];
+
+const tagsField: FieldDef = { key: 'tags', label: 'Etiquetas', type: 'lines', placeholder: 'Uma etiqueta por linha' };
+const notesField: FieldDef = { key: 'notes', label: 'Observações', type: 'textarea' };
+
 // ---------------------------------------------------------------------------
 // Cliente
 // ---------------------------------------------------------------------------
 
 export const clientFields: FieldDef[] = [
-  { key: 'name', label: 'Nome', required: true },
-  { key: 'document', label: 'CPF/CNPJ' },
-  { key: 'status', label: 'Status', type: 'select', options: toOptions(CLIENT_STATUS), required: true, half: true },
-  { key: 'priority', label: 'Prioridade', type: 'select', options: toOptions(PRIORITY), required: true, half: true },
-  { key: 'contacts.0.name', label: 'Nome', section: 'Contato principal' },
-  { key: 'contacts.0.email', label: 'E-mail', type: 'email', pattern: EMAIL, half: true },
-  { key: 'contacts.0.phone', label: 'Telefone', half: true },
-  { key: 'notes', label: 'Observações', type: 'textarea' },
+  { key: 'name', label: 'Nome / razão social', section: 'Identificação' },
+  { key: 'clientType', label: 'Tipo', type: 'select', options: toOptions(CLIENT_TYPE), half: true },
+  { key: 'tradeName', label: 'Nome fantasia', half: true },
+  { key: 'document', label: 'CPF/CNPJ', half: true },
+  { key: 'stateRegistration', label: 'Inscrição estadual', half: true },
+  { key: 'status', label: 'Status', type: 'select', options: toOptions(CLIENT_STATUS), half: true },
+  { key: 'priority', label: 'Prioridade', type: 'select', options: toOptions(PRIORITY), half: true },
+  ...contactFields('contacts.0', 'Contato principal'),
+  ...contactFields('contacts.1', 'Contato secundário'),
+  ...addressFields('billingAddress', 'Endereço de cobrança'),
+  { key: 'contractNumber', label: 'Nº do contrato', half: true, section: 'Contrato e atendimento' },
+  { key: 'supportPlan', label: 'Plano de suporte', type: 'select', options: toOptions(SUPPORT_PLAN), half: true },
+  { key: 'contractStart', label: 'Início do contrato', type: 'date', half: true },
+  { key: 'contractEnd', label: 'Fim do contrato', type: 'date', half: true },
+  { key: 'technicalResponsible', label: 'Responsável técnico', half: true },
+  { key: 'source', label: 'Origem', half: true, placeholder: 'Indicação, site, parceiro…' },
+  tagsField,
+  notesField,
 ];
 
 export const clientNewValues: Values = { status: 'prospect', priority: 'medium', contacts: [] };
 
+const hasContactData = (c?: Contact) => !!c && !!(c.name || c.email || c.phone || c.role);
+
 /** Remove contatos vazios. */
 export const prepareClient = (values: Values): Values => ({
   ...values,
-  contacts: ((values.contacts as Contact[]) ?? []).filter((c) => c && (c.name || c.email || c.phone)),
+  contacts: ((values.contacts as Contact[]) ?? []).filter(hasContactData),
 });
 
 export const clientColumns: Column<Client>[] = [
-  { title: 'Nome', render: (c) => <Text>{c.name}</Text> },
-  { title: 'Contato', render: (c) => <Text secondary>{c.contacts[0]?.name || c.contacts[0]?.email || '—'}</Text> },
+  { title: 'Nome', render: (c) => <Text>{nameOf(c)}</Text> },
+  { title: 'Contato', render: (c) => <Text secondary>{c.contacts[0]?.name || c.contacts[0]?.phone || c.contacts[0]?.email || '—'}</Text> },
+  { title: 'Cidade', render: (c) => <Text secondary>{c.billingAddress?.city || '—'}</Text> },
   {
     title: 'Status',
     render: (c) => (
@@ -73,7 +114,11 @@ export const clientColumns: Column<Client>[] = [
 ];
 
 export const clientSearch = (c: Client) =>
-  [c.name, c.document, ...c.contacts.flatMap((ct) => [ct.name, ct.email, ct.phone])].filter(Boolean).join(' ');
+  [c.name, c.tradeName, c.document, c.billingAddress?.city, ...c.tags, ...c.contacts.flatMap((ct) => [ct.name, ct.email, ct.phone])]
+    .filter(Boolean)
+    .join(' ');
+
+export const clientDisplayName = nameOf;
 
 export async function checkDeleteClient(c: Client): Promise<string | null> {
   const n = await installationsRepo.count({ clientId: c.id });
@@ -85,26 +130,39 @@ export async function checkDeleteClient(c: Client): Promise<string | null> {
 // ---------------------------------------------------------------------------
 
 export const installationFields: FieldDef[] = [
-  { key: 'name', label: 'Nome da instalação', required: true, placeholder: 'Ex.: Residência Centro' },
-  { key: 'priority', label: 'Prioridade', type: 'select', options: toOptions(PRIORITY), required: true, half: true },
-  {
-    key: 'server.baseUrl',
-    label: 'URL do Home Assistant',
-    type: 'url',
-    pattern: URL_HA,
-    placeholder: 'https://casa.exemplo.com:8123',
-    section: 'Servidor Home Assistant',
-  },
-  { key: 'address.street', label: 'Logradouro', section: 'Endereço' },
-  { key: 'address.city', label: 'Cidade', half: true },
-  { key: 'address.state', label: 'Estado', half: true },
-  { key: 'address.postalCode', label: 'CEP', half: true },
-  { key: 'address.country', label: 'País', half: true },
-  { key: 'notes', label: 'Observações', type: 'textarea' },
+  { key: 'name', label: 'Nome da instalação', placeholder: 'Ex.: Residência Centro', section: 'Identificação' },
+  { key: 'propertyType', label: 'Tipo de imóvel', type: 'select', options: toOptions(PROPERTY_TYPE), half: true },
+  { key: 'priority', label: 'Prioridade', type: 'select', options: toOptions(PRIORITY), half: true },
+  { key: 'technicalResponsible', label: 'Responsável técnico', half: true },
+  { key: 'installedAt', label: 'Data de instalação', type: 'date', half: true },
+  { key: 'warrantyUntil', label: 'Garantia até', type: 'date', half: true },
+  ...addressFields('address', 'Endereço da instalação'),
+  { key: 'accessInstructions', label: 'Instruções de acesso', type: 'textarea', placeholder: 'Portaria, chaves, horários permitidos…' },
+  ...contactFields('onSiteContact', 'Contato no local'),
+  { key: 'server.baseUrl', label: 'URL externa', placeholder: 'https://casa.exemplo.com:8123', section: 'Servidor Home Assistant' },
+  { key: 'server.localUrl', label: 'URL local', placeholder: 'http://192.168.1.10:8123' },
+  { key: 'server.installMethod', label: 'Tipo de instalação', type: 'select', options: toOptions(HA_INSTALL_METHOD), half: true },
+  { key: 'server.hardware', label: 'Hardware', half: true, placeholder: 'Green, Yellow, Raspberry Pi 5, NUC, VM…' },
+  { key: 'server.haVersion', label: 'Versão do HA', half: true, placeholder: '2026.11.1' },
+  { key: 'server.remoteAccess', label: 'Acesso remoto', type: 'select', options: toOptions(REMOTE_ACCESS), half: true },
+  { key: 'backupLocation', label: 'Local do backup', half: true, placeholder: 'Google Drive, NAS, pendrive…' },
+  { key: 'lastBackupAt', label: 'Último backup', type: 'date', half: true },
+  { key: 'network.isp', label: 'Provedor de internet', half: true, section: 'Rede' },
+  { key: 'network.internetPlan', label: 'Plano de internet', half: true },
+  { key: 'network.routerModel', label: 'Roteador principal', half: true },
+  { key: 'network.gatewayIp', label: 'IP do gateway', half: true, placeholder: '192.168.1.1' },
+  { key: 'network.subnet', label: 'Faixa de rede', half: true, placeholder: '192.168.1.0/24' },
+  { key: 'network.wifiSsids', label: 'Redes Wi-Fi (SSID)', type: 'lines', placeholder: 'Uma rede por linha — não informe senhas' },
+  { key: 'network.zigbeeCoordinator', label: 'Coordenador Zigbee', half: true, placeholder: 'SONOFF ZBDongle-E, SLZB-06…' },
+  { key: 'network.zwaveController', label: 'Controlador Z-Wave', half: true },
+  { key: 'network.threadBorderRouter', label: 'Border router Thread/Matter', half: true },
+  tagsField,
+  notesField,
 ];
 
 export const installationColumns: Column<Installation>[] = [
-  { title: 'Nome', render: (i) => <Text>{i.name}</Text> },
+  { title: 'Nome', render: (i) => <Text>{nameOf(i)}</Text> },
+  { title: 'Tipo', render: (i) => <Text secondary>{i.propertyType ? PROPERTY_TYPE[i.propertyType] : '—'}</Text> },
   { title: 'Cidade', render: (i) => <Text secondary>{i.address?.city || '—'}</Text> },
   {
     title: 'Home Assistant',
@@ -126,7 +184,9 @@ export const installationColumns: Column<Installation>[] = [
 ];
 
 export const installationSearch = (i: Installation) =>
-  [i.name, i.address?.city, i.address?.street, i.server.baseUrl].filter(Boolean).join(' ');
+  [i.name, i.address?.city, i.address?.district, i.address?.street, i.server.baseUrl, ...i.tags].filter(Boolean).join(' ');
+
+export const installationDisplayName = nameOf;
 
 export async function checkDeleteInstallation(i: Installation): Promise<string | null> {
   const [areas, devices, entities] = await Promise.all([
@@ -144,19 +204,25 @@ export async function checkDeleteInstallation(i: Installation): Promise<string |
 // ---------------------------------------------------------------------------
 
 export const areaFields: FieldDef[] = [
-  { key: 'name', label: 'Nome', required: true, placeholder: 'Ex.: Sala de estar' },
-  { key: 'floor', label: 'Andar', half: true },
-  { key: 'haAreaId', label: 'area_id no Home Assistant', pattern: HA_ID, half: true },
-  { key: 'notes', label: 'Observações', type: 'textarea' },
+  { key: 'name', label: 'Nome', placeholder: 'Ex.: Sala de estar' },
+  { key: 'areaType', label: 'Tipo', type: 'select', options: toOptions(AREA_TYPE), half: true },
+  { key: 'floor', label: 'Andar / pavimento', half: true },
+  { key: 'haAreaId', label: 'area_id no Home Assistant', placeholder: 'sala_de_estar' },
+  tagsField,
+  notesField,
 ];
 
 export const areaColumns: Column<Area>[] = [
-  { title: 'Nome', render: (a) => <Text>{a.name}</Text> },
+  { title: 'Nome', render: (a) => <Text>{nameOf(a)}</Text> },
+  { title: 'Tipo', render: (a) => <Text secondary>{a.areaType ? AREA_TYPE[a.areaType] : '—'}</Text> },
   { title: 'Andar', render: (a) => <Text secondary>{a.floor || '—'}</Text> },
   { title: 'area_id (HA)', render: (a) => <Text secondary>{a.haAreaId || '—'}</Text> },
 ];
 
-export const areaSearch = (a: Area) => [a.name, a.floor, a.haAreaId].filter(Boolean).join(' ');
+export const areaSearch = (a: Area) =>
+  [a.name, a.floor, a.haAreaId, a.areaType && AREA_TYPE[a.areaType], ...a.tags].filter(Boolean).join(' ');
+
+export const areaDisplayName = nameOf;
 
 export async function checkDeleteArea(a: Area): Promise<string | null> {
   const [devices, entities] = await Promise.all([
@@ -172,35 +238,69 @@ export async function checkDeleteArea(a: Area): Promise<string | null> {
 // Dispositivo
 // ---------------------------------------------------------------------------
 
-export const deviceFields = (areas: Option[]): FieldDef[] => [
-  { key: 'name', label: 'Nome', required: true, placeholder: 'Ex.: Interruptor sala 2 teclas' },
+export const deviceFields = (areas: Option[], devices: Option[]): FieldDef[] => [
+  { key: 'name', label: 'Nome', placeholder: 'Ex.: Interruptor sala 2 teclas', section: 'Identificação' },
+  { key: 'category', label: 'Categoria', half: true, placeholder: 'Interruptor, sensor, fechadura…' },
+  { key: 'status', label: 'Situação', type: 'select', options: toOptions(DEVICE_STATUS), half: true },
   { key: 'areaId', label: 'Ambiente', type: 'select', options: areas, half: true },
-  { key: 'protocol', label: 'Protocolo', type: 'select', options: toOptions(PROTOCOL), required: true, half: true },
-  { key: 'manufacturer', label: 'Fabricante', half: true },
+  { key: 'location', label: 'Localização exata', half: true, placeholder: 'Parede ao lado da porta' },
+  { key: 'manufacturer', label: 'Fabricante', half: true, section: 'Fabricação' },
   { key: 'model', label: 'Modelo', half: true },
-  { key: 'integration', label: 'Integração no HA', placeholder: 'zha, mqtt, tuya…', half: true },
+  { key: 'serialNumber', label: 'Nº de série', half: true },
+  { key: 'hardwareVersion', label: 'Versão de hardware', half: true },
   { key: 'firmwareVersion', label: 'Firmware', half: true },
-  { key: 'ipAddress', label: 'IP', pattern: IPV4, half: true, section: 'Rede' },
-  { key: 'macAddress', label: 'MAC', pattern: MAC, half: true },
-  { key: 'haDeviceId', label: 'device_id no Home Assistant' },
-  { key: 'notes', label: 'Observações', type: 'textarea' },
+  { key: 'protocol', label: 'Protocolo', type: 'select', options: toOptions(PROTOCOL), half: true, section: 'Conectividade e energia' },
+  { key: 'parentDeviceId', label: 'Gateway / dispositivo pai', type: 'select', options: devices, half: true },
+  { key: 'powerSource', label: 'Alimentação', type: 'select', options: toOptions(POWER_SOURCE), half: true },
+  { key: 'batteryType', label: 'Tipo de bateria', half: true, placeholder: 'CR2032, AAA…' },
+  { key: 'ipAddress', label: 'IP', half: true },
+  { key: 'macAddress', label: 'MAC / IEEE', half: true },
+  { key: 'wifiSsid', label: 'Rede Wi-Fi', half: true },
+  { key: 'integration', label: 'Integração no HA', half: true, placeholder: 'zha, mqtt, tuya, matter…', section: 'Home Assistant' },
+  { key: 'haDeviceId', label: 'device_id no HA', half: true },
+  { key: 'supplier', label: 'Fornecedor', half: true, section: 'Compra e garantia' },
+  { key: 'purchaseDate', label: 'Data de compra', type: 'date', half: true },
+  { key: 'installedAt', label: 'Data de instalação', type: 'date', half: true },
+  { key: 'warrantyUntil', label: 'Garantia até', type: 'date', half: true },
+  tagsField,
+  notesField,
 ];
 
-export const deviceNewValues: Values = { protocol: 'zigbee', attachmentIds: [] };
+export const deviceNewValues: Values = { protocol: 'zigbee', status: 'planned', attachmentIds: [] };
 
 export const deviceColumns = (areas: Option[]): Column<Device>[] => [
-  { title: 'Nome', render: (d) => <Text>{d.name}</Text> },
+  { title: 'Nome', render: (d) => <Text>{nameOf(d)}</Text> },
   { title: 'Ambiente', render: (d) => <Text secondary>{lookup(areas, d.areaId)}</Text> },
   { title: 'Protocolo', render: (d) => <Text secondary>{PROTOCOL[d.protocol]}</Text> },
   { title: 'Fabricante / modelo', render: (d) => <Text secondary>{[d.manufacturer, d.model].filter(Boolean).join(' · ') || '—'}</Text> },
+  {
+    title: 'Situação',
+    render: (d) =>
+      d.status ? (
+        <Badge size="small" skin={DEVICE_STATUS_SKIN[d.status]}>
+          {DEVICE_STATUS[d.status]}
+        </Badge>
+      ) : (
+        <Text secondary>—</Text>
+      ),
+  },
 ];
 
 export const deviceSearch = (d: Device) =>
-  [d.name, d.manufacturer, d.model, d.integration, d.ipAddress, d.macAddress, PROTOCOL[d.protocol]].filter(Boolean).join(' ');
+  [d.name, d.category, d.manufacturer, d.model, d.serialNumber, d.integration, d.ipAddress, d.macAddress, d.location, PROTOCOL[d.protocol], ...d.tags]
+    .filter(Boolean)
+    .join(' ');
+
+export const deviceDisplayName = nameOf;
 
 export async function checkDeleteDevice(d: Device): Promise<string | null> {
-  const n = await entitiesRepo.count({ deviceId: d.id });
-  return n ? `Este dispositivo tem ${n} entidade(s) vinculada(s). Exclua ou desvincule-as antes.` : null;
+  const [entities, children] = await Promise.all([
+    entitiesRepo.count({ deviceId: d.id }),
+    devicesRepo.count({ parentDeviceId: d.id }),
+  ]);
+  if (entities) return `Este dispositivo tem ${entities} entidade(s) vinculada(s). Exclua ou desvincule-as antes.`;
+  if (children) return `Este dispositivo é gateway de ${children} outro(s). Altere-os antes de excluir.`;
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,20 +308,27 @@ export async function checkDeleteDevice(d: Device): Promise<string | null> {
 // ---------------------------------------------------------------------------
 
 export const entityFields = (areas: Option[], devices: Option[]): FieldDef[] => [
-  { key: 'entityId', label: 'entity_id', required: true, pattern: ENTITY_ID, placeholder: 'light.sala_teto' },
+  // Obrigatório: é o identificador da entidade no HA e é único por instalação.
+  { key: 'entityId', label: 'entity_id', required: true, placeholder: 'light.sala_teto' },
   { key: 'friendlyName', label: 'Nome amigável' },
+  { key: 'purpose', label: 'Função', placeholder: 'Luz principal da sala, presença do corredor…' },
   { key: 'deviceId', label: 'Dispositivo', type: 'select', options: devices, half: true },
   { key: 'areaId', label: 'Ambiente', type: 'select', options: areas, half: true },
-  { key: 'deviceClass', label: 'device_class', placeholder: 'motion, temperature…', half: true },
-  { key: 'unitOfMeasurement', label: 'Unidade', placeholder: '°C, %, W…', half: true },
-  { key: 'notes', label: 'Observações', type: 'textarea' },
+  { key: 'deviceClass', label: 'device_class', half: true, placeholder: 'motion, temperature…' },
+  { key: 'unitOfMeasurement', label: 'Unidade', half: true, placeholder: '°C, %, W…' },
+  { key: 'icon', label: 'Ícone', half: true, placeholder: 'mdi:lightbulb' },
+  { key: 'supportedFeatures', label: 'supported_features', type: 'number', half: true },
+  { key: 'disabled', label: 'Desativada', type: 'boolean', half: true },
+  { key: 'hidden', label: 'Oculta', type: 'boolean', half: true },
+  tagsField,
+  notesField,
 ];
 
-/** Deriva o domínio do entity_id. */
-export const prepareEntity = (values: Values): Values => ({
-  ...values,
-  domain: domainOf(String(values.entityId ?? '')) ?? '',
-});
+/** Deriva o domínio do entity_id e normaliza para minúsculas. */
+export const prepareEntity = (values: Values): Values => {
+  const entityId = String(values.entityId ?? '').trim().toLowerCase();
+  return { ...values, entityId, domain: domainOf(entityId) ?? entityId.split('.')[0] ?? '' };
+};
 
 export const entityColumns = (areas: Option[], devices: Option[]): Column<Entity>[] => [
   { title: 'entity_id', render: (e) => <Text>{e.entityId}</Text> },
@@ -231,4 +338,5 @@ export const entityColumns = (areas: Option[], devices: Option[]): Column<Entity
   { title: 'Ambiente', render: (e) => <Text secondary>{lookup(areas, e.areaId)}</Text> },
 ];
 
-export const entitySearch = (e: Entity) => [e.entityId, e.friendlyName, e.deviceClass, e.domain].filter(Boolean).join(' ');
+export const entitySearch = (e: Entity) =>
+  [e.entityId, e.friendlyName, e.purpose, e.deviceClass, e.domain, ...e.tags].filter(Boolean).join(' ');

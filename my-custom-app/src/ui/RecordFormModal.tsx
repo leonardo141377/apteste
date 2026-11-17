@@ -152,7 +152,7 @@ const FormBody: FC<Omit<Props, 'isOpen'>> = ({ title, fields, initial, onSubmit,
                     label={field.label}
                     required={field.required}
                     status={showErrors && errors[field.key] ? 'error' : undefined}
-                    statusMessage={errors[field.key] ?? undefined}
+                    statusMessage={showErrors ? errors[field.key] ?? undefined : undefined}
                   >
                     {renderInput(field)}
                   </FormField>

@@ -1,5 +1,5 @@
-import { app } from '@wix/custom-extensions';
-import myPage from './extensions/dashboard/pages/my-page/my-page.extension.ts';
+﻿import { app } from '@wix/custom-extensions';
+import clientsPage from './extensions/dashboard/pages/clients/clients.extension.ts';
 import dataCollections from './extensions/data/collections.extension.ts';
 
-export default app().use(myPage).use(dataCollections);
+export default app().use(clientsPage).use(dataCollections);

@@ -2,12 +2,12 @@ import { extensions } from '@wix/custom-extensions';
 
 export default extensions.dashboardPage({
   id: 'bf2b862e-be58-4a54-a5c8-01cf91437509',
-  title: 'Clientes',
+  title: 'HA Admin',
   routePath: '',
-  component: './extensions/dashboard/pages/clients/clients.tsx',
+  component: './extensions/dashboard/pages/admin/admin.tsx',
   fullPage: false,
   metaData: {
     searchable: true,
-    description: 'Cadastro de clientes do HA Automation Builder.',
+    description: 'Clientes, instalações e inventário do HA Automation Builder.',
   },
 });
